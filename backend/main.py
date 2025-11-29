@@ -67,10 +67,22 @@ class AnalysisResponse(BaseModel):
 # Initialize services
 project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
 mongodb_uri = os.getenv("MONGODB_URI")
+print(f"MongoDB URI loaded: {'Yes' if mongodb_uri else 'No'}")
 ndvi_service = NDVIService(project_id=project_id)
 clustering_service = ClusteringService()
 gemini_service = GeminiCropRecommendation(api_key=os.getenv("GEMINI_API_KEY"))
-mongodb_service = MongoDBService(mongodb_uri=mongodb_uri) if mongodb_uri else None
+
+# Initialize MongoDB service
+if mongodb_uri:
+    try:
+        mongodb_service = MongoDBService(mongodb_uri=mongodb_uri)
+        print("✅ MongoDB service initialized successfully")
+    except Exception as e:
+        print(f"❌ Failed to initialize MongoDB service: {str(e)}")
+        mongodb_service = None
+else:
+    mongodb_service = None
+    print("⚠️ MongoDB URI not found in environment variables")
 
 
 @app.get("/")
@@ -135,23 +147,34 @@ async def analyze_field(request: AnalysisRequest):
         )
 
         # Step 6: Save to MongoDB
+        print(f"\n{'='*70}")
+        print(f"MongoDB Service Status: {'Available' if mongodb_service else 'Not Available'}")
         if mongodb_service:
+            print(f"Attempting to save analysis for field: {request.field_id}")
             try:
-                mongodb_service.save_analysis(
+                result = mongodb_service.save_analysis(
                     field_id=request.field_id,
                     analysis_data={
                         "classification": clustering_result['classification_percentages'],
                         "classification_map_url": clustering_result['map_base64'],
                         "ndvi_stats": ndvi_data['statistics'],
-                        "crop_recommendations": [rec.dict() for rec in recommendations],
+                        "crop_recommendations": recommendations,
                         "profitability_score": clustering_result['profitability_score'],
                         "analysis_date": ndvi_data['analysis_date']
                     }
                 )
-                print(f"Analysis saved to MongoDB for field: {request.field_id}")
+                if result:
+                    print(f"✅ Analysis saved to MongoDB for field: {request.field_id}")
+                else:
+                    print(f"⚠️ MongoDB save_analysis returned False for field: {request.field_id}")
             except Exception as mongo_error:
-                print(f"Failed to save to MongoDB: {str(mongo_error)}")
+                print(f"❌ Failed to save to MongoDB: {str(mongo_error)}")
+                import traceback
+                traceback.print_exc()
                 # Don't fail the request if MongoDB save fails
+        else:
+            print("⚠️ Skipping MongoDB save - service not initialized")
+        print(f"{'='*70}\n")
 
         return response
 

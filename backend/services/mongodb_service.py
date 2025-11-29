@@ -2,6 +2,7 @@ from pymongo import MongoClient, DESCENDING
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 import os
+import sys
 
 
 class MongoDBService:
@@ -12,9 +13,24 @@ class MongoDBService:
 
     def __init__(self, mongodb_uri: str):
         """Initialize MongoDB connection"""
-        self.client = MongoClient(mongodb_uri)
-        self.db = self.client['AgroIndia']
-        self.fields_collection = self.db['Fields']
+        try:
+            # Add connection timeout settings
+            self.client = MongoClient(
+                mongodb_uri,
+                serverSelectionTimeoutMS=5000,  # 5 second timeout
+                connectTimeoutMS=5000,
+                socketTimeoutMS=5000
+            )
+            # Test the connection
+            self.client.admin.command('ping')
+            print("[MongoDB] Connection test successful")
+
+            self.db = self.client['AgroIndia']
+            self.fields_collection = self.db['Fields']
+            print(f"[MongoDB] Using database: AgroIndia, collection: Fields")
+        except Exception as e:
+            print(f"[MongoDB] Connection failed: {str(e)}")
+            raise
 
     def save_analysis(
         self,
@@ -26,6 +42,9 @@ class MongoDBService:
         Maintains max 2 analyses per field (last and present)
         """
         try:
+            print(f"[MongoDB] Starting save_analysis for field_id: {field_id}", flush=True)
+            sys.stdout.flush()
+
             # Prepare analysis document
             analysis_doc = {
                 "field_id": field_id,
@@ -37,13 +56,17 @@ class MongoDBService:
                 "analysis_date": analysis_data.get("analysis_date"),
                 "created_at": datetime.utcnow().isoformat()
             }
+            print(f"[MongoDB] Analysis document prepared", flush=True)
 
             # Find the field document
+            print(f"[MongoDB] Searching for existing field document...", flush=True)
             field = self.fields_collection.find_one({"field_id": field_id})
 
             if field:
+                print(f"[MongoDB] Found existing field document, updating...", flush=True)
                 # Get existing analyses
                 analyses = field.get("analyses", [])
+                print(f"[MongoDB] Existing analyses count: {len(analyses)}", flush=True)
 
                 # Add new analysis
                 analyses.append(analysis_doc)
@@ -53,7 +76,7 @@ class MongoDBService:
                 analyses = analyses[:2]
 
                 # Update field document
-                self.fields_collection.update_one(
+                result = self.fields_collection.update_one(
                     {"field_id": field_id},
                     {
                         "$set": {
@@ -62,19 +85,25 @@ class MongoDBService:
                         }
                     }
                 )
+                print(f"[MongoDB] Update result - Matched: {result.matched_count}, Modified: {result.modified_count}", flush=True)
             else:
+                print(f"[MongoDB] No existing field document, creating new one...", flush=True)
                 # Create new field document
-                self.fields_collection.insert_one({
+                result = self.fields_collection.insert_one({
                     "field_id": field_id,
                     "analyses": [analysis_doc],
                     "created_at": datetime.utcnow().isoformat(),
                     "updated_at": datetime.utcnow().isoformat()
                 })
+                print(f"[MongoDB] Insert result - Inserted ID: {result.inserted_id}", flush=True)
 
+            print(f"[MongoDB] ✅ Successfully saved analysis for field_id: {field_id}", flush=True)
             return True
 
         except Exception as e:
-            print(f"MongoDB save error: {str(e)}")
+            print(f"[MongoDB] ❌ Save error: {str(e)}", flush=True)
+            import traceback
+            traceback.print_exc()
             return False
 
     def get_recent_analysis(self, field_id: str) -> Optional[Dict[str, Any]]:

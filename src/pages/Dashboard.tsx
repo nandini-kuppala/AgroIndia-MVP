@@ -136,26 +136,31 @@ const Dashboard = () => {
 
     setFields(fieldsData || []);
 
-    // Fetch latest analysis for each field
+    // Fetch latest analysis for each field from MongoDB backend
     if (fieldsData && fieldsData.length > 0) {
       try {
-        const { data: analysesData, error: analysesError } = await supabase
-          .from("field_analyses")
-          .select("field_id, profitability_score, analysis_date, classification")
-          .in("field_id", fieldsData.map(f => f.id))
-          .order("created_at", { ascending: false });
-
-        if (analysesError) throw analysesError;
-
-        // Create a map of field_id to latest analysis
         const analysesMap = new Map<string, FieldAnalysis>();
-        if (analysesData) {
-          analysesData.forEach((analysis) => {
-            if (!analysesMap.has(analysis.field_id)) {
-              analysesMap.set(analysis.field_id, analysis as FieldAnalysis);
+
+        // Fetch analysis for each field from MongoDB
+        for (const field of fieldsData) {
+          try {
+            const response = await axios.get(`${BACKEND_API_URL}/api/recent-analysis/${field.id}`);
+            if (response.data) {
+              analysesMap.set(field.id, {
+                field_id: field.id,
+                profitability_score: response.data.profitability_score,
+                analysis_date: response.data.analysis_date,
+                classification: response.data.classification
+              });
             }
-          });
+          } catch (error: any) {
+            // Skip if no analysis found (404)
+            if (error.response?.status !== 404) {
+              console.error(`Failed to fetch analysis for field ${field.id}:`, error);
+            }
+          }
         }
+
         setFieldAnalyses(analysesMap);
       } catch (error) {
         console.error("Failed to fetch field analyses:", error);
