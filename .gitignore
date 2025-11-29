@@ -10,10 +10,23 @@ backend/venv
 backend/.env text eol=lf
 
 .env
+.env.local
+.env.production
 node_modules
 dist
 dist-ssr
 *.local
+
+# Google Cloud Service Account Keys (NEVER COMMIT!)
+service-account-key.json
+*-service-account-key.json
+gcp-key.json
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!vite.config.ts
+!tailwind.config.ts
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

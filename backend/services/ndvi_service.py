@@ -4,6 +4,8 @@ from datetime import datetime, timedelta, date
 from typing import List, Dict, Any, Tuple
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+import os
+import json
 
 class NDVIService:
     """
@@ -19,8 +21,33 @@ class NDVIService:
             project_id: Google Cloud Project ID (optional, but recommended)
         """
         try:
-            # Try to initialize with project ID if provided
-            if project_id:
+            # Check for service account credentials (for production)
+            service_account_key = os.getenv("GOOGLE_SERVICE_ACCOUNT_KEY")
+
+            if service_account_key:
+                # Production mode: Use service account
+                print("Initializing Earth Engine with service account...")
+                try:
+                    # Parse the JSON key
+                    credentials_dict = json.loads(service_account_key)
+                    service_account = credentials_dict.get('client_email')
+
+                    # Create credentials from the service account key
+                    credentials = ee.ServiceAccountCredentials(
+                        email=service_account,
+                        key_data=service_account_key
+                    )
+
+                    # Initialize with service account credentials
+                    ee.Initialize(credentials=credentials, project=project_id)
+                    print(f"✅ Earth Engine initialized with service account: {service_account}")
+                except Exception as e:
+                    print(f"❌ Failed to initialize with service account: {str(e)}")
+                    raise
+
+            elif project_id:
+                # Development mode: Use authenticated user credentials
+                print("Initializing Earth Engine with user credentials...")
                 ee.Initialize(project=project_id)
                 print(f"Earth Engine initialized successfully with project: {project_id}")
             else:
