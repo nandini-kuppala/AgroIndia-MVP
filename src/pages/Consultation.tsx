@@ -6,15 +6,35 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Phone, Mail, MapPin, Users, CheckCircle, Clock, Video } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+
+interface Consultation {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  state: string;
+  district: string;
+  consultation_type: string;
+  preferred_date: string;
+  preferred_time: string;
+  message: string;
+  created_at: string;
+}
 
 const Consultation = () => {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const [consultations, setConsultations] = useState<Consultation[]>([]);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
     email: "",
+    state: "",
     district: "",
     farmSize: "",
     consultationType: "",
@@ -28,26 +48,100 @@ const Consultation = () => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    toast({
-      title: "Consultation Booked Successfully! ✅",
-      description: "Our expert will contact you within 24 hours to confirm your appointment.",
-    });
-    // Reset form
-    setFormData({
-      name: "",
-      phone: "",
-      email: "",
-      district: "",
-      farmSize: "",
-      consultationType: "",
-      preferredDate: "",
-      preferredTime: "",
-      cropType: "",
-      message: ""
-    });
+  useEffect(() => {
+    if (user) {
+      fetchConsultations();
+    }
+  }, [user]);
+
+  const fetchConsultations = async () => {
+    if (!user) return;
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("consultations")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("preferred_date", { ascending: true });
+
+      if (error) throw error;
+      setConsultations(data || []);
+    } catch (error) {
+      console.error("Error fetching consultations:", error);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to book a consultation.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from("consultations")
+        .insert([{
+          user_id: user.id,
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          state: formData.state,
+          district: formData.district,
+          consultation_type: formData.consultationType,
+          preferred_date: formData.preferredDate,
+          preferred_time: formData.preferredTime,
+          message: formData.message,
+        }]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Consultation Booked Successfully! ✅",
+        description: "Our expert will contact you within 24 hours to confirm your appointment.",
+      });
+
+      // Reset form
+      setFormData({
+        name: "",
+        phone: "",
+        email: "",
+        state: "",
+        district: "",
+        farmSize: "",
+        consultationType: "",
+        preferredDate: "",
+        preferredTime: "",
+        cropType: "",
+        message: ""
+      });
+
+      // Refresh consultations list
+      fetchConsultations();
+    } catch (error) {
+      console.error("Error booking consultation:", error);
+      toast({
+        title: "Error",
+        description: "Failed to book consultation. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const today = new Date().toISOString().split('T')[0];
+  const upcomingConsultations = consultations.filter(c => c.preferred_date >= today);
+  const completedConsultations = consultations.filter(c => c.preferred_date < today);
 
   const experts = [
     {
@@ -75,7 +169,7 @@ const Consultation = () => {
 
   const districts = {
     "Andhra Pradesh": [
-      "Anantapur", "Chittoor", "East Godavari", "Guntur", "Krishna", 
+      "Anantapur", "Chittoor", "East Godavari", "Guntur", "Krishna",
       "Kurnool", "Prakasam", "Srikakulam", "Visakhapatnam", "Vizianagaram",
       "West Godavari", "YSR Kadapa"
     ],
@@ -235,24 +329,33 @@ const Consultation = () => {
 
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="space-y-2">
+                      <Label htmlFor="state">State *</Label>
+                      <Select value={formData.state} onValueChange={(value) => handleInputChange("state", value)} required>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select your state" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Andhra Pradesh">Andhra Pradesh</SelectItem>
+                          <SelectItem value="Telangana">Telangana</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
                       <Label htmlFor="district">District *</Label>
-                      <Select value={formData.district} onValueChange={(value) => handleInputChange("district", value)}>
+                      <Select value={formData.district} onValueChange={(value) => handleInputChange("district", value)} required>
                         <SelectTrigger>
                           <SelectValue placeholder="Select your district" />
                         </SelectTrigger>
                         <SelectContent>
-                          <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">
-                            Andhra Pradesh
-                          </div>
-                          {districts["Andhra Pradesh"].map(district => (
+                          {formData.state && districts[formData.state as keyof typeof districts]?.map(district => (
                             <SelectItem key={district} value={district}>{district}</SelectItem>
                           ))}
-                          <div className="px-2 py-1 text-xs font-semibold text-muted-foreground mt-2">
-                            Telangana
-                          </div>
-                          {districts["Telangana"].map(district => (
-                            <SelectItem key={district} value={district}>{district}</SelectItem>
-                          ))}
+                          {!formData.state && (
+                            <div className="px-2 py-1 text-xs text-muted-foreground">
+                              Please select a state first
+                            </div>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
@@ -347,9 +450,9 @@ const Consultation = () => {
                     />
                   </div>
 
-                  <Button type="submit" size="lg" className="w-full">
+                  <Button type="submit" size="lg" className="w-full" disabled={loading}>
                     <Calendar className="mr-2 h-5 w-5" />
-                    Book Free Consultation
+                    {loading ? "Booking..." : "Book Free Consultation"}
                   </Button>
 
                   <p className="text-xs text-muted-foreground text-center">
@@ -450,6 +553,101 @@ const Consultation = () => {
             </Card>
           </div>
         </div>
+
+        {/* Consultations List */}
+        {user && (
+          <div className="mt-12 space-y-8">
+            {/* Upcoming Consultations */}
+            <div>
+              <h2 className="text-2xl font-bold text-foreground mb-6">Upcoming Consultations</h2>
+              {loading ? (
+                <Card className="shadow-medium">
+                  <CardContent className="py-8">
+                    <p className="text-center text-muted-foreground">Loading consultations...</p>
+                  </CardContent>
+                </Card>
+              ) : upcomingConsultations.length === 0 ? (
+                <Card className="shadow-medium">
+                  <CardContent className="py-8">
+                    <p className="text-center text-muted-foreground">No upcoming consultations</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {upcomingConsultations.map((consultation) => (
+                    <Card key={consultation.id} className="shadow-medium hover:shadow-strong transition-shadow">
+                      <CardHeader>
+                        <CardTitle className="text-lg">{consultation.name}</CardTitle>
+                        <CardDescription>{consultation.consultation_type}</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        <div className="flex items-center text-sm">
+                          <Calendar className="h-4 w-4 mr-2 text-primary" />
+                          <span>{new Date(consultation.preferred_date).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex items-center text-sm">
+                          <Clock className="h-4 w-4 mr-2 text-primary" />
+                          <span>{consultation.preferred_time}</span>
+                        </div>
+                        <div className="flex items-center text-sm">
+                          <MapPin className="h-4 w-4 mr-2 text-primary" />
+                          <span>{consultation.district}, {consultation.state}</span>
+                        </div>
+                        <div className="flex items-center text-sm">
+                          <Phone className="h-4 w-4 mr-2 text-primary" />
+                          <span>{consultation.phone}</span>
+                        </div>
+                        {consultation.message && (
+                          <p className="text-sm text-muted-foreground mt-3 pt-3 border-t border-border">
+                            {consultation.message}
+                          </p>
+                        )}
+                        <Badge variant="default" className="mt-3">Upcoming</Badge>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Completed Consultations */}
+            {completedConsultations.length > 0 && (
+              <div>
+                <h2 className="text-2xl font-bold text-foreground mb-6">Completed Consultations</h2>
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {completedConsultations.map((consultation) => (
+                    <Card key={consultation.id} className="shadow-medium opacity-75">
+                      <CardHeader>
+                        <CardTitle className="text-lg">{consultation.name}</CardTitle>
+                        <CardDescription>{consultation.consultation_type}</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        <div className="flex items-center text-sm">
+                          <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
+                          <span>{new Date(consultation.preferred_date).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex items-center text-sm">
+                          <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
+                          <span>{consultation.preferred_time}</span>
+                        </div>
+                        <div className="flex items-center text-sm">
+                          <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
+                          <span>{consultation.district}, {consultation.state}</span>
+                        </div>
+                        {consultation.message && (
+                          <p className="text-sm text-muted-foreground mt-3 pt-3 border-t border-border">
+                            {consultation.message}
+                          </p>
+                        )}
+                        <Badge variant="secondary" className="mt-3">Completed</Badge>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

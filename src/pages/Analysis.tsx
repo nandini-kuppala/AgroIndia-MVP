@@ -72,6 +72,7 @@ const Analysis = () => {
   useEffect(() => {
     if (fieldId) {
       fetchFieldData();
+      fetchLatestAnalysis();
     }
   }, [fieldId]);
 
@@ -97,6 +98,39 @@ const Analysis = () => {
     } catch (error) {
       console.error("Error fetching field:", error);
       toast.error("Failed to load field data");
+    }
+  };
+
+  const fetchLatestAnalysis = async () => {
+    if (!fieldId) return;
+
+    try {
+      const { data, error } = await supabase
+        .from("field_analyses")
+        .select("*")
+        .eq("field_id", fieldId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error && error.code !== "PGRST116") {
+        // PGRST116 is "not found" error, which is fine
+        throw error;
+      }
+
+      if (data) {
+        setAnalysisResult({
+          field_id: data.field_id,
+          classification: data.classification as any,
+          classification_map_url: data.classification_map_url,
+          ndvi_stats: data.ndvi_stats,
+          crop_recommendations: data.crop_recommendations as any,
+          profitability_score: data.profitability_score,
+          analysis_date: data.analysis_date,
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching latest analysis:", error);
     }
   };
 
@@ -156,7 +190,30 @@ const Analysis = () => {
       });
 
       setAnalysisResult(response.data);
-      toast.success("Analysis completed successfully!");
+
+      // Save analysis result to database
+      const { data: userData } = await supabase.auth.getUser();
+      if (userData.user) {
+        const { error: saveError } = await supabase
+          .from("field_analyses")
+          .insert({
+            field_id: selectedField.id,
+            user_id: userData.user.id,
+            classification: response.data.classification,
+            classification_map_url: response.data.classification_map_url,
+            ndvi_stats: response.data.ndvi_stats,
+            crop_recommendations: response.data.crop_recommendations,
+            profitability_score: response.data.profitability_score,
+            analysis_date: response.data.analysis_date,
+          });
+
+        if (saveError) {
+          console.error("Error saving analysis:", saveError);
+          toast.error("Analysis completed but failed to save to database");
+        } else {
+          toast.success("Analysis completed and saved successfully!");
+        }
+      }
     } catch (error: any) {
       console.error("Analysis error:", error);
       const errorMsg = error.response?.data?.detail || "Failed to complete analysis";

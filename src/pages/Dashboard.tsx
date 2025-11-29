@@ -5,12 +5,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { 
-  Map, 
-  Plus, 
-  BarChart3, 
-  TrendingUp, 
-  MapPin, 
+
+import {
+  Map as MapIcon,
+  Plus,
+  BarChart3,
+  TrendingUp,
+  MapPin,
   Calendar,
   Leaf,
   AlertTriangle,
@@ -33,7 +34,6 @@ interface Field {
   planting_date: string;
   expected_harvest_date: string | null;
 }
-
 interface Alert {
   type: string;
   message: string;
@@ -41,9 +41,24 @@ interface Alert {
   priority: string;
 }
 
+interface FieldAnalysis {
+  field_id: string;
+  profitability_score: number;
+  analysis_date: string;
+  classification: {
+    class_1: number;
+    class_2: number;
+    class_3: number;
+    class_4: number;
+    class_5: number;
+    class_6: number;
+  };
+}
+
 const Dashboard = () => {
   const [fields, setFields] = useState<Field[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [fieldAnalyses, setFieldAnalyses] = useState<Map<string, FieldAnalysis>>(new Map());
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
@@ -55,7 +70,7 @@ const Dashboard = () => {
 
   const fetchData = async () => {
     setLoading(true);
-    
+
     // Fetch fields
     const { data: fieldsData, error: fieldsError } = await supabase
       .from("fields")
@@ -69,6 +84,32 @@ const Dashboard = () => {
     }
 
     setFields(fieldsData || []);
+
+    // Fetch latest analysis for each field
+    if (fieldsData && fieldsData.length > 0) {
+      try {
+        const { data: analysesData, error: analysesError } = await supabase
+          .from("field_analyses")
+          .select("field_id, profitability_score, analysis_date, classification")
+          .in("field_id", fieldsData.map(f => f.id))
+          .order("created_at", { ascending: false });
+
+        if (analysesError) throw analysesError;
+
+        // Create a map of field_id to latest analysis
+        const analysesMap = new Map<string, FieldAnalysis>();
+        if (analysesData) {
+          analysesData.forEach((analysis) => {
+            if (!analysesMap.has(analysis.field_id)) {
+              analysesMap.set(analysis.field_id, analysis as FieldAnalysis);
+            }
+          });
+        }
+        setFieldAnalyses(analysesMap);
+      } catch (error) {
+        console.error("Failed to fetch field analyses:", error);
+      }
+    }
 
     // Fetch climate alerts if there are fields
     if (fieldsData && fieldsData.length > 0) {
@@ -108,7 +149,7 @@ const Dashboard = () => {
       }
     },
     {
-      id: "AP002", 
+      id: "AP002",
       name: "Cotton Field - East",
       location: "Warangal, Telangana",
       area: "18.2 acres",
@@ -127,7 +168,7 @@ const Dashboard = () => {
     {
       id: "AP003",
       name: "Experimental Plot",
-      location: "Karimnagar, Telangana", 
+      location: "Karimnagar, Telangana",
       area: "8.7 acres",
       lastAnalyzed: "2024-08-12",
       profitabilityScore: 58,
@@ -212,7 +253,7 @@ const Dashboard = () => {
           <Card className="shadow-soft">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Fields</CardTitle>
-              <Map className="h-4 w-4 text-primary" />
+              <MapIcon className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-primary">{overallStats.totalFields}</div>
@@ -279,7 +320,7 @@ const Dashboard = () => {
               {fields.length === 0 ? (
                 <Card className="shadow-soft">
                   <CardContent className="pt-8 pb-8 text-center">
-                    <Map className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <MapIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                     <h3 className="text-lg font-semibold text-foreground mb-2">No Fields Yet</h3>
                     <p className="text-muted-foreground mb-4">
                       Start by adding your first field to track its performance
@@ -293,72 +334,102 @@ const Dashboard = () => {
                   </CardContent>
                 </Card>
               ) : (
-                fields.map((field) => (
-                  <Card key={field.id} className="shadow-medium hover:shadow-strong transition-shadow">
-                    <CardHeader>
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <CardTitle className="flex items-center space-x-2">
-                            <span>{field.name}</span>
-                          </CardTitle>
-                          <CardDescription className="flex items-center space-x-1 mt-1">
-                            <MapPin className="h-3 w-3" />
-                            <span>{field.location}, {field.district}, {field.state}</span>
-                          </CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    
-                    <CardContent>
-                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Area</p>
-                          <p className="font-semibold">{field.area} {field.area_unit}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Crop Type</p>
-                          <p className="font-semibold">{field.crop_type}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Soil Type</p>
-                          <p className="font-semibold">{field.soil_type}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Water Source</p>
-                          <p className="font-semibold">{field.water_source}</p>
-                        </div>
-                      </div>
-
-                      <div className="mb-4 pt-2 border-t border-border">
-                        <div className="text-sm space-y-1">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Planted:</span>
-                            <span className="font-medium">{new Date(field.planting_date).toLocaleDateString()}</span>
+                fields.map((field) => {
+                  const analysis = fieldAnalyses.get(field.id);
+                  return (
+                    <Card key={field.id} className="shadow-medium hover:shadow-strong transition-shadow">
+                      <CardHeader>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <CardTitle className="flex items-center space-x-2">
+                              <span>{field.name}</span>
+                            </CardTitle>
+                            <CardDescription className="flex items-center space-x-1 mt-1">
+                              <MapPin className="h-3 w-3" />
+                              <span>{field.location}, {field.district}, {field.state}</span>
+                            </CardDescription>
                           </div>
-                          {field.expected_harvest_date && (
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Expected Harvest:</span>
-                              <span className="font-medium">{new Date(field.expected_harvest_date).toLocaleDateString()}</span>
+                          {analysis && (
+                            <div className="text-right">
+                              <p className="text-xs text-muted-foreground">Profitability</p>
+                              <p className="text-xl font-bold text-success">{analysis.profitability_score}%</p>
                             </div>
                           )}
                         </div>
-                      </div>
+                      </CardHeader>
 
-                      <div className="flex space-x-2">
-                        <Button variant="outline" size="sm" asChild>
-                          <NavLink to={`/analysis/${field.id}`}>
-                            View Analysis
-                          </NavLink>
-                        </Button>
-                        <Button variant="default" size="sm" asChild>
-                          <NavLink to="/fields">
-                            Manage Field
-                          </NavLink>
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
+                      <CardContent>
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                          <div>
+                            <p className="text-sm text-muted-foreground">Area</p>
+                            <p className="font-semibold">{field.area} {field.area_unit}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Crop Type</p>
+                            <p className="font-semibold">{field.crop_type}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Soil Type</p>
+                            <p className="font-semibold">{field.soil_type}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Water Source</p>
+                            <p className="font-semibold">{field.water_source}</p>
+                          </div>
+                        </div>
+
+                        {analysis && (
+                          <div className="mb-4 pt-2 border-t border-border">
+                            <div className="text-sm space-y-2">
+                              <div className="flex justify-between items-center">
+                                <span className="text-muted-foreground">Last Analyzed:</span>
+                                <span className="font-medium">{new Date(analysis.analysis_date).toLocaleDateString()}</span>
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground mb-1">High Productivity Area</p>
+                                <Progress
+                                  value={analysis.classification.class_5 + analysis.classification.class_6}
+                                  className="h-2"
+                                />
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {(analysis.classification.class_5 + analysis.classification.class_6).toFixed(1)}% of field
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="mb-4 pt-2 border-t border-border">
+                          <div className="text-sm space-y-1">
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Planted:</span>
+                              <span className="font-medium">{new Date(field.planting_date).toLocaleDateString()}</span>
+                            </div>
+                            {field.expected_harvest_date && (
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Expected Harvest:</span>
+                                <span className="font-medium">{new Date(field.expected_harvest_date).toLocaleDateString()}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex space-x-2">
+                          <Button variant="outline" size="sm" asChild>
+                            <NavLink to={`/analysis/${field.id}`}>
+                              {analysis ? 'View Analysis' : 'Run Analysis'}
+                            </NavLink>
+                          </Button>
+                          <Button variant="default" size="sm" asChild>
+                            <NavLink to="/fields">
+                              Manage Field
+                            </NavLink>
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })
               )}
             </div>
           </div>
@@ -380,8 +451,8 @@ const Dashboard = () => {
                 {displayAlerts.length === 0 ? (
                   <div className="text-center py-4">
                     <p className="text-sm text-muted-foreground">
-                      {fields.length === 0 
-                        ? "Add fields to get climate alerts" 
+                      {fields.length === 0
+                        ? "Add fields to get climate alerts"
                         : "No alerts at this time"}
                     </p>
                   </div>
@@ -426,7 +497,7 @@ const Dashboard = () => {
                 </Button>
                 <Button variant="outline" className="w-full justify-start" asChild>
                   <NavLink to="/fields">
-                    <Map className="mr-2 h-4 w-4" />
+                    <MapIcon className="mr-2 h-4 w-4" />
                     View All Fields
                   </NavLink>
                 </Button>

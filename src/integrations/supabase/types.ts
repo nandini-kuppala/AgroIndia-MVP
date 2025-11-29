@@ -14,6 +14,107 @@ export type Database = {
   }
   public: {
     Tables: {
+      bookings: {
+        Row: {
+          consultation_type: string
+          created_at: string
+          crop_type: string | null
+          district: string
+          email: string | null
+          farm_size: string
+          id: string
+          message: string
+          name: string
+          phone: string
+          preferred_date: string
+          preferred_time: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          consultation_type: string
+          created_at?: string
+          crop_type?: string | null
+          district: string
+          email?: string | null
+          farm_size: string
+          id?: string
+          message: string
+          name: string
+          phone: string
+          preferred_date: string
+          preferred_time: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          consultation_type?: string
+          created_at?: string
+          crop_type?: string | null
+          district?: string
+          email?: string | null
+          farm_size?: string
+          id?: string
+          message?: string
+          name?: string
+          phone?: string
+          preferred_date?: string
+          preferred_time?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      field_analyses: {
+        Row: {
+          analysis_date: string
+          classification: Json
+          classification_map_url: string
+          created_at: string
+          crop_recommendations: Json
+          field_id: string
+          id: string
+          ndvi_stats: Json | null
+          profitability_score: number
+          user_id: string
+        }
+        Insert: {
+          analysis_date: string
+          classification: Json
+          classification_map_url: string
+          created_at?: string
+          crop_recommendations: Json
+          field_id: string
+          id?: string
+          ndvi_stats?: Json | null
+          profitability_score: number
+          user_id: string
+        }
+        Update: {
+          analysis_date?: string
+          classification?: Json
+          classification_map_url?: string
+          created_at?: string
+          crop_recommendations?: Json
+          field_id?: string
+          id?: string
+          ndvi_stats?: Json | null
+          profitability_score?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "field_analyses_field_id_fkey"
+            columns: ["field_id"]
+            isOneToOne: false
+            referencedRelation: "fields"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       fields: {
         Row: {
           area: number
