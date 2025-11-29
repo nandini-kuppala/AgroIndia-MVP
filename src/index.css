@@ -1,5 +1,6 @@
 @import 'leaflet/dist/leaflet.css';
 @import 'leaflet-draw/dist/leaflet.draw.css';
+@import 'leaflet-geosearch/dist/geosearch.css';
 
 @tailwind base;
 @tailwind components;
@@ -135,5 +136,147 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* Custom Leaflet Map Controls Styling */
+@layer components {
+  /* Enhance geosearch bar visibility and styling */
+  .geosearch {
+    @apply shadow-md;
+  }
+
+  .geosearch .results {
+    @apply shadow-lg border border-gray-200 rounded-md;
+  }
+
+  .geosearch input {
+    @apply text-sm;
+    min-width: 250px !important;
+    padding: 8px 12px !important;
+    border-radius: 6px !important;
+    border: 2px solid hsl(122 39% 49%) !important;
+  }
+
+  .geosearch input:focus {
+    outline: none !important;
+    border-color: hsl(122 39% 42%) !important;
+    box-shadow: 0 0 0 3px hsl(122 39% 49% / 0.1) !important;
+  }
+
+  .geosearch .results > * {
+    @apply px-3 py-2 text-sm;
+  }
+
+  .geosearch .results > *:hover {
+    @apply bg-green-50;
+  }
+
+  /* Improve Leaflet Draw controls visibility */
+  .leaflet-draw-toolbar a {
+    background-color: white !important;
+    border-radius: 4px !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+  }
+
+  .leaflet-draw-toolbar a:hover {
+    background-color: hsl(122 39% 95%) !important;
+  }
+
+  .leaflet-draw-actions a {
+    background-color: white !important;
+    color: hsl(122 39% 49%) !important;
+    border: 1px solid hsl(122 39% 49%) !important;
+    border-radius: 4px !important;
+    padding: 4px 10px !important;
+    font-weight: 500 !important;
+  }
+
+  .leaflet-draw-actions a:hover {
+    background-color: hsl(122 39% 49%) !important;
+    color: white !important;
+  }
+
+  /* Make the drawing tooltip more visible */
+  .leaflet-draw-tooltip {
+    background: rgba(51, 136, 255, 0.95) !important;
+    border: none !important;
+    border-radius: 6px !important;
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.2) !important;
+  }
+
+  .leaflet-draw-tooltip-single {
+    margin-top: -10px !important;
+  }
+
+  /* Enhance polygon vertex markers during drawing */
+  .leaflet-editing-icon {
+    border-radius: 50% !important;
+    border: 3px solid hsl(122 39% 49%) !important;
+    background-color: white !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
+  }
+
+  .leaflet-touch .leaflet-draw-toolbar .leaflet-draw-draw-polygon {
+    background-color: hsl(122 39% 49%) !important;
+  }
+
+  /* Ensure the drawing tooltip is always visible */
+  .drawing-tooltip {
+    position: absolute !important;
+    top: 10px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 9999 !important;
+    pointer-events: none !important;
+  }
+
+  /* Ensure map is fully clickable during polygon drawing */
+  .leaflet-container.leaflet-touch-drag {
+    cursor: crosshair !important;
+  }
+
+  .leaflet-draw-tooltip {
+    z-index: 1000 !important;
+    pointer-events: none !important;
+  }
+
+  /* Make sure the map pane is clickable */
+  .leaflet-pane {
+    pointer-events: auto !important;
+  }
+
+  .leaflet-interactive {
+    pointer-events: auto !important;
+  }
+
+  /* Ensure drawing guides are visible but don't block clicks */
+  .leaflet-draw-guide {
+    pointer-events: none !important;
+  }
+
+  /* Make vertex markers more prominent */
+  .leaflet-marker-icon.leaflet-div-icon.leaflet-editing-icon {
+    width: 12px !important;
+    height: 12px !important;
+    margin-left: -6px !important;
+    margin-top: -6px !important;
+    background-color: white !important;
+    border: 3px solid hsl(122 39% 49%) !important;
+    border-radius: 50% !important;
+    cursor: pointer !important;
+  }
+
+  /* Highlight the first vertex to indicate where to click to finish */
+  .leaflet-marker-icon.leaflet-div-icon.leaflet-editing-icon:first-of-type {
+    border-color: #ff6b6b !important;
+    background-color: #ff6b6b !important;
+    width: 14px !important;
+    height: 14px !important;
+    margin-left: -7px !important;
+    margin-top: -7px !important;
   }
 }
