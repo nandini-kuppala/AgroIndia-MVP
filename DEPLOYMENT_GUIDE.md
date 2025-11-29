@@ -62,10 +62,10 @@ Click "Advanced" and add these environment variables:
 1. Click "Create Web Service"
 2. Wait 5-10 minutes for the first build
 3. You'll get a URL like: `https://agroindia-backend.onrender.com`
-
 ### Step 7: Test Your Backend
 
-Visit: `https://your-backend-url.onrender.com/`
+Visit: `
+https://agroindia-mvp.onrender.com`
 
 You should see:
 ```json
@@ -87,7 +87,9 @@ You should see:
 Create `.env.production` in your root directory:
 
 ```bash
-VITE_BACKEND_URL=https://your-backend-url.onrender.com
+VITE_BACKEND_URL=
+https://agroindia-mvp.onrender.com
+
 ```
 
 Replace `your-backend-url` with your actual Render URL.
