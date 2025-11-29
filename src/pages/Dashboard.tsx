@@ -15,10 +15,15 @@ import {
   Calendar,
   Leaf,
   AlertTriangle,
-  CheckCircle
+  CheckCircle,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { toast } from "sonner";
+import axios from "axios";
+
+const BACKEND_API_URL = "http://localhost:8000";
 
 interface Field {
   id: string;
@@ -55,11 +60,30 @@ interface FieldAnalysis {
   };
 }
 
+interface RecentAnalysis {
+  field_id: string;
+  classification: {
+    class_1: number;
+    class_2: number;
+    class_3: number;
+    class_4: number;
+    class_5: number;
+    class_6: number;
+  };
+  classification_map_url: string;
+  ndvi_stats: any;
+  profitability_score: number;
+  analysis_date: string;
+}
+
 const Dashboard = () => {
   const [fields, setFields] = useState<Field[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [fieldAnalyses, setFieldAnalyses] = useState<Map<string, FieldAnalysis>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [expandedFieldId, setExpandedFieldId] = useState<string | null>(null);
+  const [recentAnalysis, setRecentAnalysis] = useState<RecentAnalysis | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -67,6 +91,33 @@ const Dashboard = () => {
       fetchData();
     }
   }, [user]);
+
+  const fetchRecentAnalysis = async (fieldId: string) => {
+    if (expandedFieldId === fieldId) {
+      // Toggle off if already expanded
+      setExpandedFieldId(null);
+      setRecentAnalysis(null);
+      return;
+    }
+
+    setAnalysisLoading(true);
+    setExpandedFieldId(fieldId);
+
+    try {
+      const response = await axios.get(`${BACKEND_API_URL}/api/recent-analysis/${fieldId}`);
+      setRecentAnalysis(response.data);
+    } catch (error: any) {
+      console.error("Error fetching recent analysis:", error);
+      if (error.response?.status === 404) {
+        toast.error("No analysis found for this field");
+      } else {
+        toast.error("Failed to load recent analysis");
+      }
+      setExpandedFieldId(null);
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -415,9 +466,27 @@ const Dashboard = () => {
                         </div>
 
                         <div className="flex space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => fetchRecentAnalysis(field.id)}
+                            disabled={analysisLoading && expandedFieldId === field.id}
+                          >
+                            {expandedFieldId === field.id ? (
+                              <>
+                                <ChevronUp className="mr-2 h-4 w-4" />
+                                Hide Analysis
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown className="mr-2 h-4 w-4" />
+                                Recent Analysis
+                              </>
+                            )}
+                          </Button>
                           <Button variant="outline" size="sm" asChild>
                             <NavLink to={`/analysis/${field.id}`}>
-                              {analysis ? 'View Analysis' : 'Run Analysis'}
+                              {analysis ? 'View Full' : 'Run Analysis'}
                             </NavLink>
                           </Button>
                           <Button variant="default" size="sm" asChild>
@@ -426,6 +495,122 @@ const Dashboard = () => {
                             </NavLink>
                           </Button>
                         </div>
+
+                        {/* Recent Analysis Display */}
+                        {expandedFieldId === field.id && recentAnalysis && (
+                          <div className="mt-6 pt-6 border-t border-border space-y-4">
+                            <div className="flex justify-between items-center">
+                              <h4 className="font-semibold text-lg">Recent Analysis Results</h4>
+                              <Badge variant="secondary">
+                                {new Date(recentAnalysis.analysis_date).toLocaleDateString()}
+                              </Badge>
+                            </div>
+
+                            {/* Classification Map */}
+                            <div className="space-y-3">
+                              <div className="flex justify-center">
+                                <img
+                                  src={recentAnalysis.classification_map_url}
+                                  alt="Classification Map"
+                                  className="max-w-full rounded-lg shadow-medium"
+                                  style={{ maxHeight: '400px', objectFit: 'contain' }}
+                                />
+                              </div>
+
+                              {/* Classification Legend */}
+                              <div className="bg-muted/50 rounded-lg p-4">
+                                <h5 className="text-sm font-semibold mb-3">Classification Legend</h5>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                                  <div className="flex items-center space-x-2">
+                                    <div className="w-4 h-4 bg-[#89FC00] rounded"></div>
+                                    <span>Class 6: Highly Productive</span>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <div className="w-4 h-4 bg-[#16C172] rounded"></div>
+                                    <span>Class 5: Very Good</span>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <div className="w-4 h-4 bg-[#E6E18F] rounded"></div>
+                                    <span>Class 4: Good</span>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <div className="w-4 h-4 bg-[#92977E] rounded"></div>
+                                    <span>Class 3: Average</span>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <div className="w-4 h-4 bg-[#FCAA67] rounded"></div>
+                                    <span>Class 2: Below Average</span>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <div className="w-4 h-4 bg-[#C1292E] rounded"></div>
+                                    <span>Class 1: Poor</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Classification Distribution */}
+                              <div className="space-y-3">
+                                <h5 className="text-sm font-semibold">Productivity Distribution</h5>
+                                <div className="flex h-6 rounded-lg overflow-hidden">
+                                  {[6, 5, 4, 3, 2, 1].map((classNum) => {
+                                    const percentage =
+                                      recentAnalysis.classification[
+                                        `class_${classNum}` as keyof typeof recentAnalysis.classification
+                                      ];
+                                    const colors = {
+                                      6: "#89FC00",
+                                      5: "#16C172",
+                                      4: "#E6E18F",
+                                      3: "#92977E",
+                                      2: "#FCAA67",
+                                      1: "#C1292E",
+                                    };
+                                    return percentage > 0 ? (
+                                      <div
+                                        key={classNum}
+                                        className="flex items-center justify-center text-white text-xs font-medium"
+                                        style={{
+                                          width: `${percentage}%`,
+                                          backgroundColor: colors[classNum as keyof typeof colors],
+                                        }}
+                                        title={`Class ${classNum}: ${percentage.toFixed(1)}%`}
+                                      >
+                                        {percentage > 5 ? `${percentage.toFixed(1)}%` : ''}
+                                      </div>
+                                    ) : null;
+                                  })}
+                                </div>
+
+                                {/* Key Insights */}
+                                <div className="grid grid-cols-2 gap-4 pt-2">
+                                  <div className="text-center p-3 bg-success/10 rounded-lg">
+                                    <p className="text-2xl font-bold text-success">
+                                      {recentAnalysis.profitability_score}%
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">Profitability Score</p>
+                                  </div>
+                                  <div className="text-center p-3 bg-primary/10 rounded-lg">
+                                    <p className="text-2xl font-bold text-primary">
+                                      {(
+                                        recentAnalysis.classification.class_6 +
+                                        recentAnalysis.classification.class_5 +
+                                        recentAnalysis.classification.class_4
+                                      ).toFixed(1)}%
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">Good to Excellent</p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {expandedFieldId === field.id && analysisLoading && (
+                          <div className="mt-6 pt-6 border-t border-border text-center py-8">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                            <p className="mt-4 text-sm text-muted-foreground">Loading analysis...</p>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   );

@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from services.ndvi_service import NDVIService
 from services.clustering_service import ClusteringService
 from services.gemini_service import GeminiCropRecommendation
+from services.mongodb_service import MongoDBService
 
 load_dotenv()
 
@@ -65,9 +66,11 @@ class AnalysisResponse(BaseModel):
 
 # Initialize services
 project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+mongodb_uri = os.getenv("MONGODB_URI")
 ndvi_service = NDVIService(project_id=project_id)
 clustering_service = ClusteringService()
 gemini_service = GeminiCropRecommendation(api_key=os.getenv("GEMINI_API_KEY"))
+mongodb_service = MongoDBService(mongodb_uri=mongodb_uri) if mongodb_uri else None
 
 
 @app.get("/")
@@ -131,11 +134,53 @@ async def analyze_field(request: AnalysisRequest):
             analysis_date=ndvi_data['analysis_date']
         )
 
+        # Step 6: Save to MongoDB
+        if mongodb_service:
+            try:
+                mongodb_service.save_analysis(
+                    field_id=request.field_id,
+                    analysis_data={
+                        "classification": clustering_result['classification_percentages'],
+                        "classification_map_url": clustering_result['map_base64'],
+                        "ndvi_stats": ndvi_data['statistics'],
+                        "crop_recommendations": [rec.dict() for rec in recommendations],
+                        "profitability_score": clustering_result['profitability_score'],
+                        "analysis_date": ndvi_data['analysis_date']
+                    }
+                )
+                print(f"Analysis saved to MongoDB for field: {request.field_id}")
+            except Exception as mongo_error:
+                print(f"Failed to save to MongoDB: {str(mongo_error)}")
+                # Don't fail the request if MongoDB save fails
+
         return response
 
     except Exception as e:
         print(f"Error in analyze_field: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+
+@app.get("/api/recent-analysis/{field_id}")
+async def get_recent_analysis(field_id: str):
+    """
+    Get the most recent analysis for a field from MongoDB
+    """
+    if not mongodb_service:
+        raise HTTPException(status_code=503, detail="MongoDB service not available")
+
+    try:
+        analysis = mongodb_service.get_recent_analysis(field_id)
+
+        if not analysis:
+            raise HTTPException(status_code=404, detail="No analysis found for this field")
+
+        return analysis
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching recent analysis: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch analysis: {str(e)}")
 
 
 @app.get("/api/health")
@@ -146,7 +191,8 @@ async def health_check():
         "services": {
             "ndvi": "operational",
             "clustering": "operational",
-            "gemini_ai": "operational"
+            "gemini_ai": "operational",
+            "mongodb": "operational" if mongodb_service else "unavailable"
         }
     }
 
