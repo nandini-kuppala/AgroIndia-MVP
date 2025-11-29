@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import axios from "axios";
 import FieldMap from "@/components/FieldMap";
 
-const BACKEND_API_URL = "http://localhost:8000";
+const BACKEND_API_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
 
 interface Field {
   id: string;
